@@ -52,11 +52,7 @@ Persistent JSON files live in `task_manager_web/data/` (tasks and notifications)
 - `task_manager_web/static/styles.css` — main stylesheet
 - `task_manager_web/templates/` — HTML templates (dashboard, tasks, notifications, settings)
 
-## Screenshots
-Add screenshots to `assets/` and reference them here.
 
 ## License
 This project is licensed under the MIT License — see `LICENSE`.
 
-## Notes
-If you want, I can create a GitHub repo, push these files, and help you generate a release and add the project to your resume.
