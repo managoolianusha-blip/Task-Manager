@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Task Manager — My Tasks</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body class="{{ 'theme-dark' if request.cookies.get('theme') == 'dark' else '' }}">
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <img class="logo" src="/static/icons/logo.svg" alt="logo" />
+          <h2>Task<span class="accent">Board</span></h2>
+        </div>
+        <nav class="nav">
+          <a class="nav-item" href="/">
+            <img class="icon" src="/static/icons/dashboard.svg" alt="dashboard" />
+            <span>Dashboard</span>
+          </a>
+          <a class="nav-item active" href="/my-tasks">
+            <img class="icon" src="/static/icons/tasks.svg" alt="tasks" />
+            <span>My Tasks</span>
+          </a>
+          <a class="nav-item" href="/notifications">
+            <img class="icon" src="/static/icons/notifications.svg" alt="notifications" />
+            <span>Notifications</span>
+            {% if unread_count and unread_count > 0 %}
+              <span class="nav-badge">{{ unread_count }}</span>
+            {% endif %}
+          </a>
+          <a class="nav-item" href="/settings">
+            <img class="icon" src="/static/icons/settings.svg" alt="settings" />
+            <span>Settings</span>
+          </a>
+          <!-- Logout hidden for now -->
+        </nav>
+      </aside>
+
+      <div class="main">
+        <header class="topbar">
+          <button id="sidebarToggle" class="hamburger" aria-label="Toggle menu">☰</button>
+          <form class="search" action="/my-tasks" method="get">
+            <input name="q" placeholder="Search tasks, projects or tags" />
+          </form>
+            <div class="top-actions">
+            <button class="btn yellow" id="newTaskBtn">New Task</button>
+          </div>
+          
+        </header>
+
+        <section class="page container">
+          <div class="page-header">
+            <h1>My Tasks</h1>
+            <div class="header-actions">
+              <a class="btn" href="/">← Back to Dashboard</a>
+            </div>
+          </div>
+
+          <div class="widget">
+            <div class="widget-header">
+              <h4>Tasks List</h4>
+              <div class="muted">{{ total_tasks or 0 }} total</div>
+            </div>
+
+            <div class="filters" style="margin-bottom:.5rem; display:flex; gap:.5rem; align-items:center;">
+              <label for="filterSelect" class="muted" style="font-weight:600;">Filter:</label>
+              <select id="filterSelect" class="filter-select">
+                <option value="all" {% if active_filter=='all' %}selected{% endif %}>All ({{ filter_counts.all }})</option>
+                <option value="pending" {% if active_filter=='pending' %}selected{% endif %}>Pending ({{ filter_counts.pending }})</option>
+                <option value="completed" {% if active_filter=='completed' %}selected{% endif %}>Completed ({{ filter_counts.completed }})</option>
+                <option value="high" {% if active_filter=='high' %}selected{% endif %}>High Priority ({{ filter_counts.high }})</option>
+              </select>
+            </div>
+            <label for="sortSelect" class="muted" style="font-weight:600;margin-left:6px;">Sort:</label>
+            <select id="sortSelect" class="sort-select">
+              <option value="">None</option>
+              <option value="due:asc" {% if active_sort=='due' and active_order=='asc' %}selected{% endif %}>Due (Soonest)</option>
+              <option value="due:desc" {% if active_sort=='due' and active_order=='desc' %}selected{% endif %}>Due (Latest)</option>
+              <option value="priority:desc" {% if active_sort=='priority' and active_order=='desc' %}selected{% endif %}>Priority (High → Low)</option>
+              <option value="priority:asc" {% if active_sort=='priority' and active_order=='asc' %}selected{% endif %}>Priority (Low → High)</option>
+            </select>
+
+            <div class="task-list" style="margin-top:0.75rem;">
+              {% if filtered_tasks %}
+                {% for t in filtered_tasks|reverse %}
+                <div class="task-item {% if t.completed %}completed{% endif %} priority-{{ t.priority|default(3) }}" data-task-id="{{ t.id }}" data-task-title="{{ t.title|e }}" data-task-desc="{{ t.description|e }}" data-task-priority="{{ t.priority|default(3) }}" data-task-due="{{ t.due_date or '' }}" data-task-category="{{ t.category or '' }}">
+                  <div class="task-left">
+                    <form action="/update-task/{{ t.id }}" method="post" class="inline-form" style="display:flex; gap:0.75rem; align-items:flex-start;">
+                      <label class="checkbox" style="flex:0 0 auto; margin-top:6px;">
+                        <input type="checkbox" name="completed_checkbox" value="1" {% if t.completed %}checked{% endif %} />
+                        <span class="check-box" aria-hidden="true"></span>
+                        <span class="priority-dot" aria-hidden="true"></span>
+                      </label>
+                      <div class="task-details">
+                        <div class="task-line task-title"><span class="check-label">{{ t.title }}</span></div>
+                        <div class="task-line task-desc"><strong>Description:</strong> {% if t.description %}<span class="muted">{{ t.description }}</span>{% else %}<span class="muted">—</span>{% endif %}</div>
+                        <div class="task-line task-priority"><strong>Priority:</strong> <span class="badge">{{ t.priority|default(3) }}</span></div>
+                        <div class="task-line task-due"><strong>Due:</strong> {% if t.due_date %}<span class="muted">{{ t.due_display }}</span>{% else %}<span class="muted">—</span>{% endif %}</div>
+                        <div class="task-line task-category"><strong>Category:</strong> {% if t.category %}<span class="muted">{{ t.category }}</span>{% else %}<span class="muted">—</span>{% endif %}</div>
+                      </div>
+                    </form>
+                  </div>
+                  <div class="task-right">
+                    <button type="button" class="icon-btn update-btn" data-update-id="{{ t.id }}" aria-label="Update task">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M21 12a9 9 0 1 1-2.64-6.36" stroke="#2b6cb0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M21 3v6h-6" stroke="#2b6cb0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </button>
+                    <form action="/delete-task/{{ t.id }}" method="post" class="inline-form confirm-delete" style="margin-bottom:8px; display:inline-block; margin-right:.4rem;">
+                      <button type="submit" class="icon-btn danger" aria-label="Delete task">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                          <path d="M3 6h18" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                          <path d="M10 11v6M14 11v6" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </button>
+                    </form>
+                    <button type="button" class="icon-btn" data-edit-id="{{ t.id }}" aria-label="Edit task">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M3 21v-3.6l11-11 3.6 3.6-11 11H3z" fill="#2b6cb0"/>
+                        <path d="M14.5 6.5l3 3" stroke="#2b6cb0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                {% endfor %}
+              {% else %}
+                <p class="muted">No tasks yet — add one to get started.</p>
+              {% endif %}
+            </div>
+          </div>
+
+        </section>
+      </div>
+    </div>
+
+    <!-- Modal (copied from dashboard) -->
+    <div id="newTaskModal" class="modal" aria-hidden="true">
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <header class="modal-header">
+          <h3 id="modalTitle">Add New Task</h3>
+          <button class="btn" data-close aria-label="Close">✕</button>
+        </header>
+        <form id="taskModalForm" class="modal-body" action="/add-task" method="post">
+          <div class="field">
+            <label>Title</label>
+            <input id="modal_input_title" name="title" type="text" required placeholder="e.g. Finish monthly report" />
+          </div>
+          <div class="field">
+            <label>Description</label>
+            <textarea id="modal_input_description" name="description" rows="3" placeholder="Brief description"></textarea>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Priority</label>
+              <select id="modal_input_priority" name="priority">
+                <option value="1">Low</option>
+                <option value="2">Normal</option>
+                <option value="3" selected>Medium</option>
+                <option value="4">High</option>
+                <option value="5">Urgent</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Due date</label>
+              <input id="modal_input_due" name="due_date" type="date" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Category</label>
+            <select id="modal_input_category" name="category">
+              <option>Work</option>
+              <option>Family</option>
+              <option>Freelance</option>
+            </select>
+          </div>
+          <input type="hidden" id="modal_task_id" name="_task_id" value="" />
+          <footer class="modal-footer">
+            <button type="button" class="btn" data-close>Cancel</button>
+            <button type="submit" class="btn primary">Save Task</button>
+          </footer>
+        </form>
+      </div>
+    </div>
+
+    <script>
+    // Modal open/close logic (same as dashboard)
+    (() => {
+      const openBtn = document.getElementById('newTaskBtn');
+      const modal = document.getElementById('newTaskModal');
+      if (!openBtn || !modal) return;
+      const closeElems = modal.querySelectorAll('[data-close]');
+      function open() { modal.setAttribute('aria-hidden','false'); modal.classList.add('open'); document.body.style.overflow='hidden'; }
+      function close() { modal.setAttribute('aria-hidden','true'); modal.classList.remove('open'); document.body.style.overflow=''; }
+      openBtn.addEventListener('click', (e)=>{ e.preventDefault(); open(); });
+      closeElems.forEach(el=>el.addEventListener('click', (e)=>{ e.preventDefault(); close(); }));
+      window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') close(); });
+    })();
+    </script>
+
+    <script>
+    // Edit modal population and update-form handling (same as dashboard)
+    (function(){
+      const updateForms = Array.from(document.querySelectorAll('form[action^="/update-task/"]'));
+      updateForms.forEach(form=>{
+        form.addEventListener('submit', function(e){
+          const cb = form.querySelector('input[name="completed_checkbox"]');
+          let statusVal = 'Pending';
+          if(cb && cb.checked) statusVal = 'done';
+          let hid = form.querySelector('input[name="status"][type="hidden"]');
+          if(!hid){ hid = document.createElement('input'); hid.type='hidden'; hid.name='status'; form.appendChild(hid); }
+          hid.value = statusVal;
+        });
+      });
+
+      const editButtons = Array.from(document.querySelectorAll('button[data-edit-id]'));
+      const modal = document.getElementById('newTaskModal');
+      const modalForm = document.getElementById('taskModalForm');
+      const inTitle = document.getElementById('modal_input_title');
+      const inDesc = document.getElementById('modal_input_description');
+      const inPriority = document.getElementById('modal_input_priority');
+      const inDue = document.getElementById('modal_input_due');
+      const inCategory = document.getElementById('modal_input_category');
+      const inTaskId = document.getElementById('modal_task_id');
+
+      editButtons.forEach(btn=>{
+        btn.addEventListener('click', function(e){
+          const id = btn.getAttribute('data-edit-id');
+          const row = document.querySelector('[data-task-id="'+id+'"]');
+          if(!row) return;
+          inTitle.value = row.getAttribute('data-task-title') || '';
+          inDesc.value = row.getAttribute('data-task-desc') || '';
+          inPriority.value = row.getAttribute('data-task-priority') || '3';
+          inDue.value = row.getAttribute('data-task-due') || '';
+          inCategory.value = row.getAttribute('data-task-category') || '';
+          inTaskId.value = id;
+          modalForm.action = '/update-task/' + id;
+          document.getElementById('modalTitle').textContent = 'Edit Task';
+          modal.setAttribute('aria-hidden','false'); modal.classList.add('open'); document.body.style.overflow='hidden';
+        });
+      });
+
+      const closeElems = modal.querySelectorAll('[data-close]');
+      closeElems.forEach(el=> el.addEventListener('click', ()=>{
+        modalForm.action = '/add-task';
+        document.getElementById('modalTitle').textContent = 'Add New Task';
+        inTitle.value = ''; inDesc.value=''; inPriority.value='3'; inDue.value=''; inCategory.value=''; inTaskId.value='';
+      }));
+    })();
+    </script>
+    <script>
+      // Wire filter and sort selects to update query params and reload
+      (function(){
+        const sel = document.getElementById('filterSelect');
+        const sort = document.getElementById('sortSelect');
+        if(!sel || !sort) return;
+        sel.addEventListener('change', ()=>{
+          const v = sel.value || 'all';
+          const url = new URL(window.location.href);
+          url.searchParams.set('filter', v);
+          // preserve sort/order if present
+          window.location.href = url.toString();
+        });
+        sort.addEventListener('change', ()=>{
+          const v = sort.value || '';
+          const url = new URL(window.location.href);
+          if(!v){ url.searchParams.delete('sort'); url.searchParams.delete('order'); }
+          else { const [s,o] = v.split(':'); url.searchParams.set('sort', s); url.searchParams.set('order', o); }
+          window.location.href = url.toString();
+        });
+      })();
+    </script>
+    <script>
+      // Make the right-side Update button submit the left update form (which contains the checkbox)
+      (function(){
+        const buttons = Array.from(document.querySelectorAll('.update-btn'));
+        buttons.forEach(btn=>{
+          btn.addEventListener('click', ()=>{
+            const id = btn.dataset.updateId;
+            if(!id) return;
+            const item = document.querySelector('[data-task-id="'+id+'"]');
+            if(!item) return;
+            // find the left update form inside task-left
+            const leftForm = item.querySelector('.task-left form');
+            if(!leftForm) return;
+            // ensure a `next` hidden input so server can redirect back to this page
+            let nextInput = leftForm.querySelector('input[name="next"][type="hidden"]');
+            if(!nextInput){ nextInput = document.createElement('input'); nextInput.type='hidden'; nextInput.name='next'; leftForm.appendChild(nextInput); }
+            nextInput.value = window.location.href;
+            // submit in a way that triggers submit event handlers (use requestSubmit if available)
+            if(typeof leftForm.requestSubmit === 'function'){
+              leftForm.requestSubmit();
+            } else {
+              // fallback: create a temporary submit button and click it
+              const temp = document.createElement('button'); temp.type='submit'; temp.style.display='none'; leftForm.appendChild(temp); temp.click(); temp.remove();
+            }
+          });
+        });
+      })();
+    </script>
+    <script>
+      (function(){
+        var m = document.cookie.match(/(^|; )theme=([^;]+)/);
+        if(m && m[2] === 'dark') document.body.classList.add('theme-dark'); else document.body.classList.remove('theme-dark');
+      })();
+    </script>
+    <script>
+      (function(){
+        const toggle = document.getElementById('sidebarToggle');
+        const sidebar = document.querySelector('.sidebar');
+        function setOpen(open){
+          if(open){ sidebar.classList.add('open'); document.documentElement.classList.add('sidebar-open'); }
+          else { sidebar.classList.remove('open'); document.documentElement.classList.remove('sidebar-open'); }
+        }
+        if(toggle && sidebar){
+          toggle.addEventListener('click', ()=>{ setOpen(!sidebar.classList.contains('open')); });
+          document.addEventListener('click', (e)=>{ if(sidebar.classList.contains('open') && !sidebar.contains(e.target) && e.target!==toggle){ setOpen(false); } });
+        }
+      })();
+    </script>
+  </body>
+</html>

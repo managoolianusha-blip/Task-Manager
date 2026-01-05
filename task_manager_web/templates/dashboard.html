@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Task Manager — Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body class="{{ 'theme-dark' if request.cookies.get('theme') == 'dark' else '' }}">
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <img class="logo" src="/static/icons/logo.svg" alt="logo" />
+          <h2>Task<span class="accent">Board</span></h2>
+        </div>
+        <nav class="nav">
+          <a class="nav-item active" href="#">
+            <img class="icon" src="/static/icons/dashboard.svg" alt="dashboard" />
+            <span>Dashboard</span>
+          </a>
+          <a class="nav-item" href="/my-tasks">
+            <img class="icon" src="/static/icons/tasks.svg" alt="tasks" />
+            <span>My Tasks</span>
+          </a>
+          <a class="nav-item" href="/notifications">
+            <img class="icon" src="/static/icons/notifications.svg" alt="notifications" />
+            <span>Notifications</span>
+            {% if unread_count and unread_count > 0 %}
+              <span class="nav-badge">{{ unread_count }}</span>
+            {% endif %}
+          </a>
+          <a class="nav-item" href="/settings">
+            <img class="icon" src="/static/icons/settings.svg" alt="settings" />
+            <span>Settings</span>
+          </a>
+          <!-- Logout hidden for now -->
+        </nav>
+      </aside>
+
+      <div class="main">
+        <header class="topbar">
+          <button id="sidebarToggle" class="hamburger" aria-label="Toggle menu">☰</button>
+          <form class="search" action="/" method="get">
+            <input name="q" placeholder="Search tasks, projects or tags" />
+          </form>
+            <div class="top-actions">
+            <button class="btn yellow" id="newTaskBtn">New Task</button>
+          </div>
+          
+        </header>
+
+        <section class="page container">
+          <div class="page-header">
+            <h1>Dashboard</h1>
+            <div class="header-actions">
+              <!-- Inline add form removed — use the yellow New Task button in the topbar -->
+            </div>
+          </div>
+
+          {# Flash messages #}
+          {% with messages = get_flashed_messages(with_categories=false) %}
+            {% if messages %}
+              <div class="flashes">
+                {% for m in messages %}
+                  <div class="flash-item">{{ m }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endwith %}
+
+          {# Empty state when no tasks exist #}
+          {% if total_tasks == 0 %}
+            <div class="empty-state">
+              <div class="empty-illustration">📭</div>
+              <h2>No tasks yet</h2>
+              <p class="muted">You haven't added any tasks. Add your first task to get organized.</p>
+              <div style="margin-top:0.75rem;"><button class="btn yellow" id="newTaskBtnEmpty">add new task</button></div>
+            </div>
+            <script>
+              (function(){ const b = document.getElementById('newTaskBtnEmpty'); const open = document.getElementById('newTaskBtn'); if(b && open) b.addEventListener('click', (e)=>{ e.preventDefault(); open.click(); }); })();
+            </script>
+          {% else %}
+
+          <div class="cards">
+            <div class="card">
+              <div class="card-title">Total Tasks</div>
+              <div class="card-value">{{ total_tasks or 0 }}</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Completed</div>
+              <div class="card-value">{{ completed_tasks or 0 }}</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Pending</div>
+              <div class="card-value">{{ pending_tasks or 0 }}</div>
+            </div>
+            <div class="card">
+              <div class="card-title">High Priority</div>
+              <div class="card-value">{{ high_priority_tasks or 0 }}</div>
+            </div>
+          </div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="col-left">
+              <div class="widget calendar">
+                <div class="widget-header">
+                  <h4>Calendar</h4>
+                  <div class="muted">{{ '' }}</div>
+                </div>
+                <div class="calendar-body">
+                  <div class="calendar-controls">
+                    <div class="calendar-left">
+                      <button class="btn small" id="calPrev">◀</button>
+                      <div class="month-year" style="display:flex;gap:.5rem;align-items:center">
+                        <select id="calMonth" class="filter-select"></select>
+                        <select id="calYear" class="filter-select"></select>
+                      </div>
+                      <button class="btn small" id="calNext">▶</button>
+                    </div>
+                    <div class="calendar-right">
+                      <button class="btn small" id="calClear">Clear</button>
+                    </div>
+                  </div>
+                  <div class="calendar-weekdays">
+                    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                  </div>
+                  <div class="calendar-grid" id="calendarGrid" aria-live="polite"></div>
+                </div>
+              </div>
+
+              <div class="widget">
+                <div class="widget-header">
+                  <h4>My Tasks</h4>
+                  <div class="muted">{{ total_tasks or 0 }} total</div>
+                </div>
+                <div class="filters" style="margin-bottom:.5rem; display:flex; gap:.5rem; align-items:center;">
+                  <label for="filterSelect" class="muted" style="font-weight:600;">Filter:</label>
+                  <select id="filterSelect" class="filter-select">
+                    <option value="all" {% if active_filter=='all' %}selected{% endif %}>All ({{ filter_counts.all }})</option>
+                    <option value="pending" {% if active_filter=='pending' %}selected{% endif %}>Pending ({{ filter_counts.pending }})</option>
+                    <option value="completed" {% if active_filter=='completed' %}selected{% endif %}>Completed ({{ filter_counts.completed }})</option>
+                    <option value="high" {% if active_filter=='high' %}selected{% endif %}>High Priority ({{ filter_counts.high }})</option>
+                  </select>
+                </div>
+                <label for="sortSelect" class="muted" style="font-weight:600;margin-left:6px;">Sort:</label>
+                <select id="sortSelect" class="sort-select">
+                  <option value="">None</option>
+                  <option value="due:asc" {% if active_sort=='due' and active_order=='asc' %}selected{% endif %}>Due (Soonest)</option>
+                  <option value="due:desc" {% if active_sort=='due' and active_order=='desc' %}selected{% endif %}>Due (Latest)</option>
+                  <option value="priority:desc" {% if active_sort=='priority' and active_order=='desc' %}selected{% endif %}>Priority (High → Low)</option>
+                  <option value="priority:asc" {% if active_sort=='priority' and active_order=='asc' %}selected{% endif %}>Priority (Low → High)</option>
+                </select>
+
+                <script>
+                  (function(){
+                    const sel = document.getElementById('filterSelect');
+                    const sort = document.getElementById('sortSelect');
+                    if(!sel || !sort) return;
+                    sel.addEventListener('change', ()=>{
+                      const v = sel.value || 'all';
+                      const url = new URL(window.location.href);
+                      url.searchParams.set('filter', v);
+                      window.location.href = url.toString();
+                    });
+                    sort.addEventListener('change', ()=>{
+                      const v = sort.value || '';
+                      const url = new URL(window.location.href);
+                      if(!v){ url.searchParams.delete('sort'); url.searchParams.delete('order'); }
+                      else { const [s,o] = v.split(':'); url.searchParams.set('sort', s); url.searchParams.set('order', o); }
+                      window.location.href = url.toString();
+                    });
+                  })();
+                </script>
+                <div class="task-list">
+                  {% if filtered_tasks %}
+                    {% for t in filtered_tasks|reverse %}
+                    <div class="task-item {% if t.completed %}completed{% endif %} priority-{{ t.priority|default(3) }}" data-task-id="{{ t.id }}" data-task-title="{{ t.title|e }}" data-task-desc="{{ t.description|e }}" data-task-priority="{{ t.priority|default(3) }}" data-task-due="{{ t.due_date or '' }}" data-task-category="{{ t.category or '' }}">
+                      <div class="task-main">
+                        <form action="/update-task/{{ t.id }}" method="post" class="inline-form">
+                          <label class="checkbox">
+                            <input type="checkbox" name="completed_checkbox" value="1" {% if t.completed %}checked{% endif %} />
+                            <span class="check-box" aria-hidden="true"></span>
+                            <span class="priority-dot" aria-hidden="true"></span>
+                            <span class="check-label">{{ t.title }}</span>
+                          </label>
+                          <div class="task-meta">
+                            {% if t.due_label %}<span class="muted">{{ t.due_label }}</span>{% endif %}
+                          </div>
+                          <!-- update button moved to task-actions for right alignment -->
+                        </form>
+                      </div>
+                      <div class="task-actions">
+                        <button type="button" class="icon-btn update-btn" data-update-id="{{ t.id }}" aria-label="Update task">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M21 12a9 9 0 1 1-2.64-6.36" stroke="#2b6cb0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M21 3v6h-6" stroke="#2b6cb0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </button>
+                        <form action="/delete-task/{{ t.id }}" method="post" class="inline-form confirm-delete" style="display:inline-block; margin-right:.4rem;">
+                          <button type="submit" class="icon-btn danger" aria-label="Delete task">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                              <path d="M3 6h18" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+                              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                              <path d="M10 11v6M14 11v6" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                          </button>
+                        </form>
+                        <button type="button" class="icon-btn" data-edit-id="{{ t.id }}" aria-label="Edit task">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M3 21v-3.6l11-11 3.6 3.6-11 11H3z" fill="#2b6cb0"/>
+                            <path d="M14.5 6.5l3 3" stroke="#2b6cb0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    {% endfor %}
+                  {% else %}
+                    <p class="muted">No tasks yet — add one to get started.</p>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <div class="col-right">
+              <div class="widget">
+                <div class="widget-header">
+                  <h4>Categories</h4>
+                </div>
+                <div class="categories">
+                  {% if category_counts %}
+                    {% for name, count in category_counts.items() %}
+                      <div class="category">{{ name }} <span class="muted">({{ count }})</span></div>
+                    {% endfor %}
+                  {% else %}
+                    <div class="category muted">No categories</div>
+                  {% endif %}
+                </div>
+              </div>
+
+              <div class="widget">
+                <div class="widget-header">
+                  <h4>Time Tracking</h4>
+                </div>
+                <div class="time-tracker muted">00:00:00 tracked today — start a timer when working on tasks.</div>
+              </div>
+
+              <div class="widget">
+                <div class="widget-header">
+                  <h4>Activity</h4>
+                </div>
+                <div class="activity-list">
+                  <div class="activity-item">No recent activity</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </section>
+      </div>
+    </div>
+    <script>
+      (function(){
+        var m = document.cookie.match(/(^|; )theme=([^;]+)/);
+        if(m && m[2] === 'dark') document.body.classList.add('theme-dark'); else document.body.classList.remove('theme-dark');
+      })();
+    </script>
+    <script>
+      // Make right-side Update buttons submit the left update form (same logic as tasks page)
+      (function(){
+        const buttons = Array.from(document.querySelectorAll('.update-btn'));
+        buttons.forEach(btn=>{
+          btn.addEventListener('click', ()=>{
+            const id = btn.dataset.updateId;
+            if(!id) return;
+            const item = document.querySelector('[data-task-id="'+id+'"]');
+            if(!item) return;
+            const leftForm = item.querySelector('form[action^="/update-task/"]');
+            if(!leftForm) return;
+            let nextInput = leftForm.querySelector('input[name="next"][type="hidden"]');
+            if(!nextInput){ nextInput = document.createElement('input'); nextInput.type='hidden'; nextInput.name='next'; leftForm.appendChild(nextInput); }
+            nextInput.value = window.location.href;
+            if(typeof leftForm.requestSubmit === 'function') leftForm.requestSubmit(); else { const temp = document.createElement('button'); temp.type='submit'; temp.style.display='none'; leftForm.appendChild(temp); temp.click(); temp.remove(); }
+          });
+        });
+      })();
+    </script>
+    <script>
+      (function(){
+        const toggle = document.getElementById('sidebarToggle');
+        const sidebar = document.querySelector('.sidebar');
+        function setOpen(open){
+          if(open){ sidebar.classList.add('open'); document.documentElement.classList.add('sidebar-open'); }
+          else { sidebar.classList.remove('open'); document.documentElement.classList.remove('sidebar-open'); }
+        }
+        if(toggle && sidebar){
+          toggle.addEventListener('click', ()=>{ setOpen(!sidebar.classList.contains('open')); });
+          // close when clicking outside
+          document.addEventListener('click', (e)=>{ if(sidebar.classList.contains('open') && !sidebar.contains(e.target) && e.target!==toggle){ setOpen(false); } });
+        }
+      })();
+    </script>
+  </body>
+</html>
+<div id="newTaskModal" class="modal" aria-hidden="true">
+  <div class="modal-backdrop" data-close></div>
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <header class="modal-header">
+      <h3 id="modalTitle">Add New Task</h3>
+      <button class="btn" data-close aria-label="Close">✕</button>
+    </header>
+    <form id="taskModalForm" class="modal-body" action="/add-task" method="post">
+      <div class="field">
+        <label>Title</label>
+        <input id="modal_input_title" name="title" type="text" required placeholder="e.g. Finish monthly report" />
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="modal_input_description" name="description" rows="3" placeholder="Brief description"></textarea>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Priority</label>
+          <select id="modal_input_priority" name="priority">
+            <option value="1">Low</option>
+            <option value="2">Normal</option>
+            <option value="3" selected>Medium</option>
+            <option value="4">High</option>
+            <option value="5">Urgent</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Due date</label>
+          <input id="modal_input_due" name="due_date" type="date" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <select id="modal_input_category" name="category">
+          <option>Work</option>
+          <option>Family</option>
+          <option>Freelance</option>
+        </select>
+      </div>
+      <input type="hidden" id="modal_task_id" name="_task_id" value="" />
+      <footer class="modal-footer">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Save Task</button>
+      </footer>
+    </form>
+  </div>
+</div>
+
+<script>
+// Modal open/close logic
+(() => {
+  const openBtn = document.getElementById('newTaskBtn');
+  const modal = document.getElementById('newTaskModal');
+  if (!openBtn || !modal) return;
+  const closeElems = modal.querySelectorAll('[data-close]');
+  function open() { modal.setAttribute('aria-hidden','false'); modal.classList.add('open'); document.body.style.overflow='hidden'; }
+  function close() { modal.setAttribute('aria-hidden','true'); modal.classList.remove('open'); document.body.style.overflow=''; }
+  openBtn.addEventListener('click', (e)=>{ e.preventDefault(); open(); });
+  closeElems.forEach(el=>el.addEventListener('click', (e)=>{ e.preventDefault(); close(); }));
+  window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') close(); });
+})();
+</script>
+<script>
+// Handle update forms: set status based on checkbox state before submit
+(function(){
+  const updateForms = Array.from(document.querySelectorAll('form[action^="/update-task/"]'));
+  updateForms.forEach(form=>{
+    form.addEventListener('submit', function(e){
+      // find the completed checkbox
+      const cb = form.querySelector('input[name="completed_checkbox"]');
+      let statusVal = 'Pending';
+      if(cb && cb.checked) statusVal = 'done';
+      // ensure a hidden status input exists with correct value
+      let hid = form.querySelector('input[name="status"][type="hidden"]');
+      if(!hid){ hid = document.createElement('input'); hid.type='hidden'; hid.name='status'; form.appendChild(hid); }
+      hid.value = statusVal;
+      // allow submit to proceed
+    });
+  });
+
+  // Edit button: populate modal with task data and switch form action to update
+  const editButtons = Array.from(document.querySelectorAll('button[data-edit-id]'));
+  const modal = document.getElementById('newTaskModal');
+  const modalForm = document.getElementById('taskModalForm');
+  const modalTitle = document.getElementById('modalTitle');
+  const inTitle = document.getElementById('modal_input_title');
+  const inDesc = document.getElementById('modal_input_description');
+  const inPriority = document.getElementById('modal_input_priority');
+  const inDue = document.getElementById('modal_input_due');
+  const inCategory = document.getElementById('modal_input_category');
+  const inTaskId = document.getElementById('modal_task_id');
+
+  editButtons.forEach(btn=>{
+    btn.addEventListener('click', function(e){
+      const id = btn.getAttribute('data-edit-id');
+      const row = document.querySelector('[data-task-id="'+id+'"]');
+      if(!row) return;
+      inTitle.value = row.getAttribute('data-task-title') || '';
+      inDesc.value = row.getAttribute('data-task-desc') || '';
+      inPriority.value = row.getAttribute('data-task-priority') || '3';
+      inDue.value = row.getAttribute('data-task-due') || '';
+      inCategory.value = row.getAttribute('data-task-category') || '';
+      inTaskId.value = id;
+      // change form action to update
+      modalForm.action = '/update-task/' + id;
+      document.getElementById('modalTitle').textContent = 'Edit Task';
+      // open modal
+      modal.setAttribute('aria-hidden','false'); modal.classList.add('open'); document.body.style.overflow='hidden';
+    });
+  });
+
+  // When modal closes, reset to add-mode
+  const closeElems = modal.querySelectorAll('[data-close]');
+  closeElems.forEach(el=> el.addEventListener('click', ()=>{
+    modalForm.action = '/add-task';
+    document.getElementById('modalTitle').textContent = 'Add New Task';
+    inTitle.value = ''; inDesc.value=''; inPriority.value='3'; inDue.value=''; inCategory.value=''; inTaskId.value='';
+  }));
+
+})();
+</script>
+<script>
+// Calendar rendering logic (client-side)
+(function(){
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const selectedDateFromServer = "{{ selected_date or '' }}";
+  const calMonth = document.getElementById('calMonth');
+  const calYear = document.getElementById('calYear');
+  const calGrid = document.getElementById('calendarGrid');
+  const prevBtn = document.getElementById('calPrev');
+  const nextBtn = document.getElementById('calNext');
+  const clearBtn = document.getElementById('calClear');
+  if(!calMonth || !calYear || !calGrid) return;
+
+  const today = new Date();
+  let activeYear = today.getFullYear();
+  let activeMonth = today.getMonth();
+
+  // If the server provided a selected date (YYYY-MM-DD), use it to
+  // initialize the calendar view so it stays on that month until cleared.
+  if(selectedDateFromServer){
+    try{
+      const parts = String(selectedDateFromServer).split('-');
+      if(parts.length >= 2){
+        const y = parseInt(parts[0],10);
+        const m = parseInt(parts[1],10) - 1;
+        if(!Number.isNaN(y) && !Number.isNaN(m)){
+          activeYear = y;
+          activeMonth = m;
+        }
+      }
+    }catch(e){ /* ignore parse errors and keep today */ }
+  }
+
+  function populateSelectors(){
+    calMonth.innerHTML = '';
+    monthNames.forEach((m,i)=>{
+      const opt = document.createElement('option'); opt.value = i; opt.textContent = m; if(i===activeMonth) opt.selected = true; calMonth.appendChild(opt);
+    });
+    calYear.innerHTML = '';
+    const start = activeYear-5; const end = activeYear+5;
+    for(let y=start;y<=end;y++){ const opt=document.createElement('option'); opt.value=y; opt.textContent=y; if(y===activeYear) opt.selected=true; calYear.appendChild(opt); }
+  }
+
+  function renderCalendar(month, year){
+    calGrid.innerHTML='';
+    // first day of month (0=Sun)
+    const first = new Date(year, month, 1).getDay();
+    // days in month
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+    // days in previous month (for leading blanks if desired)
+    const prevDays = new Date(year, month, 0).getDate();
+
+    // fill blanks for days before first
+    for(let i=0;i<first;i++){
+      const d = document.createElement('div'); d.className='calendar-day other-month empty'; d.textContent=''; calGrid.appendChild(d);
+    }
+
+    for(let d=1; d<=daysInMonth; d++){
+      const cell = document.createElement('div');
+      cell.className='calendar-day';
+      cell.textContent = d;
+      // compute ISO date for this cell
+      // Build ISO date string (YYYY-MM-DD) manually to avoid toISOString timezone shifts
+      const mm = String(month+1).padStart(2,'0');
+      const dd = String(d).padStart(2,'0');
+      const iso = `${year}-${mm}-${dd}`;
+      cell.dataset.date = iso;
+      // add a click handler to filter tasks by date
+      cell.addEventListener('click', (e)=>{
+        e.preventDefault();
+        const url = new URL(window.location.href);
+        url.searchParams.set('date', iso);
+        // Visual feedback: animate selection before navigating
+        Array.from(calGrid.querySelectorAll('.calendar-day.selected')).forEach(c=>c.classList.remove('selected'));
+        cell.classList.add('selected');
+        // delay navigation so user sees the tick animation
+        setTimeout(()=> { window.location.href = url.toString(); }, 240);
+      });
+      // mark today
+      if(year===today.getFullYear() && month===today.getMonth() && d===today.getDate()){
+        cell.classList.add('today');
+      }
+      // mark selected date if provided by server
+      if(selectedDateFromServer && selectedDateFromServer === iso){
+        cell.classList.add('selected');
+      }
+      calGrid.appendChild(cell);
+    }
+
+    // Optionally, append trailing blanks to keep grid consistent
+    const totalCells = calGrid.children.length;
+    const remainder = totalCells % 7;
+    if(remainder !== 0){
+      const toAdd = 7 - remainder;
+      for(let i=0;i<toAdd;i++){ const d=document.createElement('div'); d.className='calendar-day empty'; d.textContent=''; calGrid.appendChild(d); }
+    }
+
+    // After rendering, fetch task counts grouped by created_at and mark cells
+    if(window.fetch){
+      fetch('/api/tasks').then(r=>r.json()).then(list=>{
+        try{
+          const groups = {};
+          list.forEach(t=>{
+            // only count tasks that are not completed
+            const completed = Boolean(t.completed) || String(t.status||'').toLowerCase() === 'done' || String(t.status||'').toLowerCase() === 'completed';
+            if(completed) return;
+            // count only by due_date (user requested 'Due')
+            const due = t.due_date || t.dueDate;
+            if(due){ const iso2 = String(due).slice(0,10); groups[iso2] = (groups[iso2]||0) + 1; }
+          });
+          // clear existing badges
+          Array.from(calGrid.querySelectorAll('.task-badge')).forEach(b=>b.remove());
+          Array.from(calGrid.children).forEach(cell=>{
+            if(!cell.dataset || !cell.dataset.date) return;
+            const iso = cell.dataset.date;
+            const count = groups[iso] || 0;
+            cell.classList.toggle('has-tasks', count>0);
+            if(count>0){
+              const span = document.createElement('span');
+              span.className = 'task-badge';
+              span.textContent = String(count);
+              cell.appendChild(span);
+            }
+          });
+        }catch(e){ /* ignore fetch/parse errors */ }
+      }).catch(()=>{});
+    }
+  }
+
+  calMonth.addEventListener('change', ()=>{ activeMonth = parseInt(calMonth.value,10); renderCalendar(activeMonth, activeYear); });
+  calYear.addEventListener('change', ()=>{ activeYear = parseInt(calYear.value,10); renderCalendar(activeMonth, activeYear); });
+  prevBtn.addEventListener('click', (e)=>{ e.preventDefault(); activeMonth--; if(activeMonth<0){ activeMonth=11; activeYear--; } populateSelectors(); renderCalendar(activeMonth, activeYear); });
+  nextBtn.addEventListener('click', (e)=>{ e.preventDefault(); activeMonth++; if(activeMonth>11){ activeMonth=0; activeYear++; } populateSelectors(); renderCalendar(activeMonth, activeYear); });
+  if(clearBtn){ clearBtn.addEventListener('click', (e)=>{ e.preventDefault(); const url = new URL(window.location.href); url.searchParams.delete('date');
+      // animate clearing selection then navigate
+      Array.from(calGrid.querySelectorAll('.calendar-day.selected')).forEach(c=> c.classList.remove('selected'));
+      setTimeout(()=> { window.location.href = url.toString(); }, 180);
+    }); }
+
+  // initialize
+  populateSelectors(); renderCalendar(activeMonth, activeYear);
+})();
+</script>
+<script>
+// Confirm delete forms
+(function(){
+  const forms = document.querySelectorAll('form.confirm-delete');
+  forms.forEach(f=>{
+    f.addEventListener('submit', function(e){
+      if(!confirm('Are you sure you want to delete this task?')){
+        e.preventDefault();
+      }
+    });
+  });
+  // auto-dismiss flashes
+  const flashes = document.querySelectorAll('.flash-item');
+  flashes.forEach(el=> setTimeout(()=>{ el.style.transition='opacity 250ms'; el.style.opacity='0'; setTimeout(()=>el.remove(),260); }, 3500));
+})();
+</script>

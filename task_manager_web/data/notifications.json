@@ -1,0 +1,17 @@
+[
+  {
+    "ts": "2026-01-02T12:28:36.538266",
+    "kind": "delete",
+    "message": "Task deleted: test 4"
+  },
+  {
+    "ts": "2026-01-02T12:30:45.084642",
+    "kind": "create",
+    "message": "Task created: bug report (id=70afa72f-e9e2-401c-b236-35a16d53765b)"
+  },
+  {
+    "ts": "2026-01-05T07:31:20.840375",
+    "kind": "create",
+    "message": "Task created: design (id=ea61970c-30c6-452b-9d80-0c81f54a7cc4)"
+  }
+]

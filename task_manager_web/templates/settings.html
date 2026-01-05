@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Task Manager — Settings</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body class="{{ 'theme-dark' if current_theme=='dark' else '' }}">
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <img class="logo" src="/static/icons/logo.svg" alt="logo" />
+          <h2>Task<span class="accent">Board</span></h2>
+        </div>
+        <nav class="nav">
+          <a class="nav-item" href="/">
+            <img class="icon" src="/static/icons/dashboard.svg" alt="dashboard" />
+            <span>Dashboard</span>
+          </a>
+          <a class="nav-item" href="/my-tasks">
+            <img class="icon" src="/static/icons/tasks.svg" alt="tasks" />
+            <span>My Tasks</span>
+          </a>
+          <a class="nav-item" href="/notifications">
+            <img class="icon" src="/static/icons/notifications.svg" alt="notifications" />
+            <span>Notifications</span>
+            {% if unread_count and unread_count > 0 %}
+              <span class="nav-badge">{{ unread_count }}</span>
+            {% endif %}
+          </a>
+          <a class="nav-item active" href="/settings">
+            <img class="icon" src="/static/icons/settings.svg" alt="settings" />
+            <span>Settings</span>
+          </a>
+          <!-- Logout hidden for now -->
+        </nav>
+      </aside>
+
+      <div class="main">
+        <header class="topbar">
+          <button id="sidebarToggle" class="hamburger" aria-label="Toggle menu">☰</button>
+          <form class="search" action="/settings" method="get">
+            <input name="q" placeholder="Search settings" />
+          </form>
+          <div class="top-actions">
+            <a class="btn" href="/">Back to Dashboard</a>
+          </div>
+        </header>
+
+        <section class="page container">
+          <div class="page-header">
+            <h1>Settings</h1>
+            <div class="header-actions">
+              <div class="muted">Appearance</div>
+            </div>
+          </div>
+
+          <div class="card" style="max-width:720px;">
+            <h3>Theme</h3>
+            <form id="themeForm" action="/settings" method="post">
+              <div style="display:flex; gap:1rem; align-items:center; margin-top:0.5rem;">
+                <label style="display:flex; gap:0.5rem; align-items:center;">
+                  <input type="radio" name="theme" value="light" {% if current_theme!='dark' %}checked{% endif %} />
+                  <span style="font-weight:700;">Light</span>
+                </label>
+                <label style="display:flex; gap:0.5rem; align-items:center;">
+                  <input type="radio" name="theme" value="dark" {% if current_theme=='dark' %}checked{% endif %} />
+                  <span style="font-weight:700;">Dark</span>
+                </label>
+                <button class="btn primary" type="submit">Save</button>
+              </div>
+            </form>
+            <div style="margin-top:1rem;" class="muted">Selection will apply immediately and persist for this browser.</div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      // apply theme immediately on change and send POST to persist
+      (function(){
+        const form = document.getElementById('themeForm');
+        if(!form) return;
+        form.addEventListener('change', (e)=>{
+          const theme = form.elements['theme'].value;
+          if(theme === 'dark') document.body.classList.add('theme-dark'); else document.body.classList.remove('theme-dark');
+          // send POST to persist without blocking navigation
+          fetch('/settings', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'theme='+encodeURIComponent(theme)})
+            .catch(()=>{});
+        });
+      })();
+    </script>
+  </body>
+</html>

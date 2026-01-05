@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Task Manager — Notifications</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body class="{{ 'theme-dark' if request.cookies.get('theme') == 'dark' else '' }}">
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <img class="logo" src="/static/icons/logo.svg" alt="logo" />
+          <h2>Task<span class="accent">Board</span></h2>
+        </div>
+        <nav class="nav">
+          <a class="nav-item" href="/">
+            <img class="icon" src="/static/icons/dashboard.svg" alt="dashboard" />
+            <span>Dashboard</span>
+          </a>
+          <a class="nav-item" href="/my-tasks">
+            <img class="icon" src="/static/icons/tasks.svg" alt="tasks" />
+            <span>My Tasks</span>
+          </a>
+          <a class="nav-item active" href="/notifications">
+            <img class="icon" src="/static/icons/notifications.svg" alt="notifications" />
+            <span>Notifications</span>
+            {% if unread_count and unread_count > 0 %}
+              <span class="nav-badge">{{ unread_count }}</span>
+            {% endif %}
+          </a>
+          <a class="nav-item" href="/settings">
+            <img class="icon" src="/static/icons/settings.svg" alt="settings" />
+            <span>Settings</span>
+          </a>
+          <!-- Logout hidden for now -->
+        </nav>
+      </aside>
+
+      <div class="main">
+        <header class="topbar">
+          <button id="sidebarToggle" class="hamburger" aria-label="Toggle menu">☰</button>
+          <form class="search" action="/notifications" method="get">
+            <input name="q" placeholder="Search notifications" />
+          </form>
+          <div class="top-actions">
+            <form action="/notifications/clear" method="post" onsubmit="return confirm('Clear all notifications?');" style="display:inline-block;margin-right:0.5rem;">
+              <button class="btn small" type="submit">Clear</button>
+            </form>
+            <a class="btn" href="/">Back to Dashboard</a>
+          </div>
+        </header>
+
+        <section class="page container">
+          <div class="page-header">
+            <h1>Notifications</h1>
+            <div class="header-actions">
+              <div class="muted">Recent events and due alerts</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Recent Notifications</h3>
+            {% if notifications and notifications|length > 0 %}
+              <ul class="notifications-list" style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.6rem;">
+                {% for n in notifications %}
+                  <li class="panel" style="display:flex; align-items:flex-start; gap:0.75rem;">
+                    <div style="flex:1;">
+                      <div style="font-weight:700;">
+                        {{ (n.message.split('(id=')[0]).strip() }}
+                      </div>
+                      <div class="muted" style="font-size:0.9rem; margin-top:4px;">{{ n.kind|capitalize }} • {% if n.due_display %}{{ n.due_display }}{% else %}{{ n.ts_display }}{% endif %}</div>
+                    </div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="empty">No notifications</div>
+            {% endif %}
+          </div>
+
+        </section>
+      </div>
+    </div>
+    <script>
+      (function(){
+        var m = document.cookie.match(/(^|; )theme=([^;]+)/);
+        if(m && m[2] === 'dark') document.body.classList.add('theme-dark'); else document.body.classList.remove('theme-dark');
+      })();
+    </script>
+  </body>
+</html>
