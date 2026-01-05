@@ -23,6 +23,5 @@ Run/Preview:
 3. `pip install -r requirements.txt`
 4. `python task_manager_web/app.py`
 
-Resume blurb (copy-paste):
-Task Manager — Personal Project — https://github.com/<your-username>/task-manager
-Full-stack Task Manager built with Flask, featuring persistent JSON storage, calendar view, notifications, and responsive light/dark UI. Implemented task CRUD, priority sorting, calendar filtering, and polished UX with custom checkbox visuals and ambient glass modals.
+
+
