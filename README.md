@@ -41,7 +41,6 @@ pip install -r requirements.txt
 python task_manager_web/app.py
 ```
 
-Open http://127.0.0.1:5000 in your browser.
 
 ## Data
 Persistent JSON files live in `task_manager_web/data/` (tasks and notifications). Back these up if needed.
@@ -55,4 +54,5 @@ Persistent JSON files live in `task_manager_web/data/` (tasks and notifications)
 
 ## License
 This project is licensed under the MIT License — see `LICENSE`.
+
 
